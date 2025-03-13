@@ -8,6 +8,8 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.Attributes;
 
+
+
 namespace FamilyParameterEditor
 {
     [Transaction(TransactionMode.Manual)]
@@ -28,8 +30,10 @@ namespace FamilyParameterEditor
                 }
 
                 FamilyManager familyManager = doc.FamilyManager;
+                List<FamilyParameter> builtInParams = GetBuiltInFamilyParameters(doc); // Получаем список встроенных параметров
                 List<ParameterDataItem> parametersData = familyManager.Parameters
                     .Cast<FamilyParameter>()
+                    .Where(p => !builtInParams.Contains(p)) // Исключаем встроенные параметры
                     .Select(p => new ParameterDataItem(p, familyManager))
                     .OrderBy(p => p.Group)
                     .ThenBy(p => p.Name)
@@ -62,7 +66,34 @@ namespace FamilyParameterEditor
                 return Result.Failed;
             }
         }
+
+        public static List<FamilyParameter> GetBuiltInFamilyParameters(Document doc)
+        {
+            List<FamilyParameter> builtInParams = new List<FamilyParameter>();
+
+            // Проверяем, что документ является файлом семейства
+            if (!doc.IsFamilyDocument)
+            {
+                return builtInParams; // Возвращаем пустой список, если это не семейство
+            }
+
+            FamilyManager familyManager = doc.FamilyManager;
+
+            foreach (FamilyParameter param in familyManager.Parameters)
+            {
+                // Фильтруем только встроенные параметры
+                if (!param.IsShared && param.Definition is InternalDefinition internalDef &&
+                    internalDef.BuiltInParameter != BuiltInParameter.INVALID)
+                {
+                    builtInParams.Add(param);
+                }
+            }
+
+            return builtInParams;
+        }
     }
+
+
 
     public class ParameterDataItem
     {
@@ -290,7 +321,10 @@ namespace FamilyParameterEditor
                     }
                 }
             }
+
+
         }
 
     }
+
 }

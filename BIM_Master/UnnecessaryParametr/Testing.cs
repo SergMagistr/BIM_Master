@@ -28,27 +28,26 @@ public class UnusedFamilyParametersCommand1 : IExternalCommand
             tx.Start();
 
             // 1. Получаем все параметры семейства
-            List<FamilyParameter> allParams = GetFamilyParameters.GetNonSharedFamilyParameters(doc);
+            List<FamilyParameter> allParams = FamilyParameterUtils.GetNonSharedFamilyParameters(doc);
 
             // 2. Получаем встроенные параметры
-            List<FamilyParameter> builtInParams = GetBuiltInParameters.GetBuiltInFamilyParameters(doc);
+            List<FamilyParameter> builtInParams = FamilyParameterUtils.GetBuiltInFamilyParameters(doc);
 
             // 3. Получаем связанные параметры (используемые в метках)
             List<FamilyParameter> linkedParams = FamilyParameterUtils.GetLinkedFamilyParameters(doc);
 
             // 4. Получаем параметры, связанные с вложенными семействами
-            List<(string ParentParam, string NestedFamily, string NestedParam)> associatedParams =
-                AssociatedParameterFinder.GetAssociatedParameters(doc);
+            List<string> associatedParams = FamilyParameterUtils.GetAssociatedFamilyParameters(doc); 
 
             // 5. Получаем параметры, участвующие в формулах
-            List<string> formulaReferencedParams = FamilyParameterAnalyzer.GetReferencedParameters(doc);
-
+            List<string> formulaReferencedParams = FamilyParameterUtils.GetReferencedParameters(doc);
+            
             // 6. Создаем уникальный список параметров, которые нужно исключить
             HashSet<string> excludedParamNames = new HashSet<string>(
                 builtInParams.Select(p => p.Definition.Name)
                 .Concat(linkedParams.Select(p => p.Definition.Name))
-                .Concat(associatedParams.Select(p => p.ParentParam))
-                .Concat(formulaReferencedParams)
+                .Concat(associatedParams) // Параметры, связанные с вложенными семействами и геометрией
+                .Concat(formulaReferencedParams) // Добавляем параметры, участвующие в формулах
             );
 
             // 7. Вычитаем параметры: оставляем только те, которых нет в excludedParamNames
@@ -66,6 +65,7 @@ public class UnusedFamilyParametersCommand1 : IExternalCommand
 
         return Result.Succeeded;
     }
+
 }
 
 /// <summary>Форма с таблицами параметров.</summary>
@@ -73,7 +73,7 @@ public class ParameterTableForm2 : System.Windows.Forms.Form
 {
     public ParameterTableForm2(
         List<FamilyParameter> allParams, List<FamilyParameter> builtInParams,
-        List<FamilyParameter> linkedParams, List<(string, string, string)> associatedParams,
+        List<FamilyParameter> linkedParams, List<string> associatedParams,
         List<string> formulaReferencedParams, List<FamilyParameter> unusedParams)
     {
         this.Text = "Анализ параметров семейства";
@@ -90,11 +90,12 @@ public class ParameterTableForm2 : System.Windows.Forms.Form
             RowCount = 6
         };
 
+        // Добавляем панели для каждой таблицы с параметрами
         layout.Controls.Add(CreateLabeledGridView("Все параметры семейства", allParams.Select(p => new[] { p.Definition.Name }).ToList()), 0, 0);
         layout.Controls.Add(CreateLabeledGridView("Встроенные параметры", builtInParams.Select(p => new[] { p.Definition.Name }).ToList()), 0, 1);
-        layout.Controls.Add(CreateLabeledGridView("Связанные параметры", linkedParams.Select(p => new[] { p.Definition.Name }).ToList()), 0, 2);
-        layout.Controls.Add(CreateLabeledGridView("Связанные с вложенными семействами", associatedParams.Select(p => new[] { p.Item1, p.Item2, p.Item3 }).ToList()), 0, 3);
-        layout.Controls.Add(CreateLabeledGridView("Параметры в формулах", formulaReferencedParams.Select(p => new[] { p }).ToList()), 0, 4);
+        layout.Controls.Add(CreateLabeledGridView("Параметры, связанные с размерами", linkedParams.Select(p => new[] { p.Definition.Name }).ToList()), 0, 2);
+        layout.Controls.Add(CreateLabeledGridView("Параметры, связанные с вложенными семействами или геом. обьектом", associatedParams.Select(p => new[] { p }).ToList()), 0, 3);
+        layout.Controls.Add(CreateLabeledGridView("Параметры, участвующие в формулах или имеют формулу", formulaReferencedParams.Select(p => new[] { p }).ToList()), 0, 4);
         layout.Controls.Add(CreateLabeledGridView("Ненужные параметры", unusedParams.Select(p => new[] { p.Definition.Name }).ToList()), 0, 5);
 
         this.Controls.Add(layout);
@@ -157,3 +158,4 @@ public class ParameterTableForm2 : System.Windows.Forms.Form
         return panel;
     }
 }
+
